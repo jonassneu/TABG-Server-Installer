@@ -463,7 +463,7 @@ impl Room {
         )]
     }
 
-    /// Downed bots bleed out (players' own clients do that for them; nobody revives a bot).
+    /// Downed bots bleed out faster than players (`bleed_out`): nobody revives a bot.
     fn bots_bleed(&mut self) -> Vec<Outgoing> {
         let downed: Vec<u8> = self
             .bots

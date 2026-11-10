@@ -370,6 +370,27 @@ fn killing_your_own_princess_brings_her_halfway_back_but_faster() {
 }
 
 #[test]
+fn the_dead_respawn_without_spectating_a_teammate() {
+    // The client would switch to the teammate 4 s later, even after the respawn.
+    let mut room = started(3);
+    let team = room.players[&0].group;
+    assert!(
+        room.players
+            .values()
+            .any(|p| p.index != 0 && p.group == team && p.alive),
+        "a living teammate"
+    );
+    let enemy = *room
+        .bots
+        .keys()
+        .find(|b| room.players[b].group != team)
+        .unwrap();
+    let out = kill(&mut room, 0, enemy);
+    let dead = PlayerDead::decode(&events(&out, EventCode::PlayerDead)[0].packet.payload).unwrap();
+    assert_eq!(dead.spectate, NOBODY);
+}
+
+#[test]
 fn kills_earn_a_helicopter_smoke_grenade() {
     let mut room = started(0);
     let team = room.players[&0].group;

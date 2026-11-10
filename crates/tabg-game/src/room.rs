@@ -69,6 +69,12 @@ pub use weather::NAMES as WEATHERS;
 /// server terminates 15 s after the end).
 pub const RESTART_AFTER_END: f32 = 15.0;
 
+/// Downed players lose this much health every `BLEED_INTERVAL` seconds (official
+/// `ServerNetworkPlayer.TickHealth`). The client leaves bleeding out to the server in network
+/// matches, so without it a downed player nobody finishes off stays down forever.
+const BLEED_DAMAGE: f32 = 5.0;
+const BLEED_INTERVAL: f32 = 1.5;
+
 /// Who a packet goes to. Player ids are ENet peer ids (TABG's player index).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Recipients {
@@ -122,6 +128,10 @@ struct Player {
     downed: bool,
     /// When the player went down (damage within 1 s of that is ignored).
     down_time: f32,
+    /// While downed: when they next bleed.
+    bleed_at: f32,
+    /// While downed: the teammate reviving them (bleeding pauses meanwhile).
+    reviver: Option<u8>,
     /// 255 = nobody.
     last_attacker: u8,
     kills: u16,
@@ -178,6 +188,8 @@ impl Player {
             health: 100.0,
             downed: false,
             down_time: 0.0,
+            bleed_at: 0.0,
+            reviver: None,
             last_attacker: NOBODY,
             kills: 0,
             chunk: (0, 0),
@@ -1727,6 +1739,8 @@ impl Room {
         victim.downed = true;
         victim.health = 100.0;
         victim.down_time = now;
+        victim.bleed_at = now + BLEED_INTERVAL;
+        victim.reviver = None;
         let group = victim.group;
         // …unless the whole team is now down or dead: then everyone in it dies.
         let team_down = self
@@ -1796,6 +1810,12 @@ impl Room {
             p.boss_fight = true;
             p.boss_done = true;
             extras::BOSS_FIGHT
+        } else if self.is_princess_mode() || (self.settings.respawn.is_some() && !self.is_brawl()) {
+            // Back on their own after the delay: nobody to spectate. The client switches to the
+            // teammate 4 s after `PlayerDead` and a respawn doesn't undo that; if the teammate has
+            // died by then it puts up its "spectating" screen instead, which then stays over the
+            // respawned player.
+            NOBODY
         } else {
             self.players
                 .values()
@@ -1906,12 +1926,60 @@ impl Room {
         if !target.alive || !target.downed || target.group != reviver_group {
             return Vec::new();
         }
-        if req.stage == ReviveStage::Finished {
-            target.downed = false;
-            target.health = 15.0;
+        match req.stage {
+            ReviveStage::Start => target.reviver = Some(peer),
+            ReviveStage::Stop => {
+                if target.reviver == Some(peer) {
+                    target.reviver = None;
+                }
+            }
+            ReviveStage::Finished => {
+                target.downed = false;
+                target.health = 15.0;
+                target.reviver = None;
+            }
         }
         let payload = encode_revive_state(req.stage, req.revived, req.reviver, target.health);
         vec![Self::broadcast(EventCode::ReviveState, payload)]
+    }
+
+    /// Downed players bleed out unless a teammate on their feet is reviving them. Bots bleed on
+    /// their own clock (`bots_bleed`). The killing blow is their last attacker's.
+    fn bleed_out(&mut self, now: f32) -> Vec<Outgoing> {
+        let due: Vec<u8> = self
+            .players
+            .values()
+            .filter(|p| p.alive && p.downed && now >= p.bleed_at && !self.is_bot(p.index))
+            .map(|p| p.index)
+            .collect();
+        let mut out = Vec::new();
+        for index in due {
+            let helped = self.players[&index]
+                .reviver
+                .is_some_and(|r| self.players.get(&r).is_some_and(|r| r.alive && !r.downed));
+            let p = self.players.get_mut(&index).expect("listed above");
+            p.bleed_at = now + BLEED_INTERVAL;
+            if helped {
+                continue;
+            }
+            p.reviver = None;
+            p.health -= BLEED_DAMAGE;
+            if p.health <= 0.0 {
+                out.extend(self.kill(index, false));
+                continue;
+            }
+            let damaged = PlayerDamaged {
+                victim: index,
+                attacker: p.last_attacker,
+                health: p.health,
+                downed: true,
+                damaged: true,
+                direction: PackedDirection::ZERO,
+                hit: None,
+            };
+            out.push(Self::broadcast(EventCode::PlayerDamaged, damaged.encode()));
+        }
+        out
     }
 
     fn broadcast(event: EventCode, payload: Vec<u8>) -> Outgoing {
@@ -2358,6 +2426,7 @@ impl Room {
         out.extend(self.tick_destruction());
         out.extend(self.follow_weather_setting());
         if self.state == game_state::STARTED {
+            out.extend(self.bleed_out(now));
             out.extend(self.tick_aircraft(now, dt));
             out.extend(self.tick_missiles(now, dt));
             out.extend(self.tick_drones(now));
@@ -3198,7 +3267,8 @@ mod tests {
         );
         // Within a second of going down, hits are ignored.
         assert!(hit(&mut room, 2, 0, 0.0).is_empty());
-        run(&mut room, 1.6, 3.0);
+        // (Before the first bleed at 3.0.)
+        run(&mut room, 1.6, 2.8);
         // Downed damage is capped at 50 and scaled by 0.12: 100 -> 94.
         let d = PlayerDamaged::decode(&hit(&mut room, 2, 0, 0.0)[0].packet.payload).unwrap();
         assert!(d.downed && (d.health - 94.0).abs() < 1e-3, "{d:?}");
@@ -3226,6 +3296,41 @@ mod tests {
             room.handle(2, &Packet::new(EventCode::ReviveState, fake.encode()))
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn downed_players_bleed_out_unless_a_teammate_revives_them() {
+        let mut room = fight_room(&[(0, 7), (1, 7), (2, 9)]);
+        hit(&mut room, 2, 0, 0.0);
+        // The teammate starts reviving: no bleeding meanwhile.
+        let start = ReviveRequest {
+            stage: ReviveStage::Start,
+            reviver: 1,
+            revived: 0,
+        };
+        room.handle(1, &Packet::new(EventCode::ReviveState, start.encode()));
+        let out = run(&mut room, 1.6, 10.0);
+        assert!(events(&out, EventCode::PlayerDamaged).is_empty());
+        assert_eq!(room.players[&0].health, 100.0);
+        // They stop: 5 health every 1.5 s, and death at 0 (the kill is the last attacker's).
+        let stop = ReviveRequest {
+            stage: ReviveStage::Stop,
+            ..start
+        };
+        room.handle(1, &Packet::new(EventCode::ReviveState, stop.encode()));
+        let out = run(&mut room, 10.1, 11.6);
+        let d = PlayerDamaged::decode(&events(&out, EventCode::PlayerDamaged)[0].packet.payload)
+            .unwrap();
+        assert_eq!(
+            (d.victim, d.attacker, d.health, d.downed),
+            (0, 2, 95.0, true)
+        );
+        let out = run(&mut room, 11.7, 45.0);
+        let dead =
+            PlayerDead::decode(&events(&out, EventCode::PlayerDead)[0].packet.payload).unwrap();
+        assert_eq!((dead.victim, dead.last_attacker), (0, 2));
+        assert_eq!(room.players[&2].kills, 1);
+        assert!(events(&out, EventCode::TeamDead).is_empty(), "1 still up");
     }
 
     #[test]
