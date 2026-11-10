@@ -486,6 +486,12 @@ This software is provided **as-is** with no warranty of any kind. Use at your ow
 
 ## Credits
 
+### Contributors
+
+| Contributor | Contribution |
+|---|---|
+| [Eddy](https://github.com/eddyjunge) | Capture the Princess: the mode, its bots, the PrincessMode mod, and share codes that install mods needing ModSettings |
+
 ### Third-Party Code
 
 | Component | Author | Use |
