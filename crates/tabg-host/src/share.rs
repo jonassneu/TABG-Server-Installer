@@ -287,6 +287,27 @@ pub struct Joined {
     pub installed: Vec<String>,
 }
 
+/// The name a catalog file is installed under: its assembly's (`Tabg.ModSettings-1.0.0.dll` →
+/// `Tabg.ModSettings.dll`). .NET finds a referenced assembly by that name, and mods that use
+/// another mod's types (FlyingControls uses ModSettings) fail to load if it's still versioned.
+fn assembly_file(file: &str) -> String {
+    let Some(stem) = file.strip_suffix(".dll") else {
+        return file.to_owned();
+    };
+    match stem.rsplit_once('-') {
+        Some((name, version))
+            if !name.is_empty()
+                && !version.is_empty()
+                && version
+                    .split('.')
+                    .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit())) =>
+        {
+            format!("{name}.dll")
+        }
+        _ => file.to_owned(),
+    }
+}
+
 /// Make (or update) the modded copy of TABG for `code`.
 pub fn join(paths: &Paths, code: &str, progress: &mut dyn FnMut(&str)) -> Result<Joined, String> {
     let share = ShareCode::decode(code)?;
@@ -353,7 +374,7 @@ pub fn join(paths: &Paths, code: &str, progress: &mut dyn FnMut(&str)) -> Result
     for m in &share.mods {
         progress(&format!("getting {} {}", m.id, m.version));
         let data = fetch_to(&format!("{base}/{}", m.file), &m.sha256, &cache)?;
-        put(&m.file, &data)?;
+        put(&assembly_file(&m.file), &data)?;
     }
     if !share.files.is_empty() {
         let host = share
@@ -429,6 +450,25 @@ pub fn launch(paths: &Paths) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn catalog_files_install_under_their_assembly_name() {
+        assert_eq!(
+            assembly_file("Tabg.ModSettings-1.0.0.dll"),
+            "Tabg.ModSettings.dll"
+        );
+        assert_eq!(
+            assembly_file("Tabg.AdminRadar.Client-2.0.0.dll"),
+            "Tabg.AdminRadar.Client.dll"
+        );
+        assert_eq!(assembly_file("Tabg.Visuals-1.7.0.dll"), "Tabg.Visuals.dll");
+        assert_eq!(
+            assembly_file("Tabg.Foo-bar.dll"),
+            "Tabg.Foo-bar.dll",
+            "not a version"
+        );
+        assert_eq!(assembly_file("My.Mod.dll"), "My.Mod.dll");
+    }
 
     #[test]
     fn share_codes_round_trip_and_reject_garbage() {
