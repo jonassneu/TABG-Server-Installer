@@ -602,7 +602,7 @@ fn bots_attack_defend_and_escort_in_a_full_match() {
     );
 }
 
-/// The real island (Actual Castle against City) with bots only, to watch them find their way:
+/// The real island (Actual Castle against New Castle) with bots only, to watch them find their way:
 /// `TABG_NAV=<gunzipped world.nav> cargo test -p tabg-game island_bots -- --ignored --nocapture`.
 #[test]
 #[ignore = "needs the island's walkability grid (TABG_NAV, gunzipped), from your own game files"]

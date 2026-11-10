@@ -72,8 +72,8 @@ pub enum GameMode {
     Brawl,
     /// TABG's Bomb (the TABG_CS map): two teams, rounds with a buy phase, plant and defuse.
     Bomb,
-    /// Capture the Princess on the island: Actual Castle against City. Hold a gun on the other
-    /// team's princess to walk her to your cage. Friends need the flying-controls mod.
+    /// Capture the Princess on the island: Actual Castle against New Castle. Hold a gun on the
+    /// other team's princess to walk her to your cage. Friends need the flying-controls mod.
     Princess,
 }
 
@@ -549,7 +549,7 @@ impl ServerToml {
         if g.mode == GameMode::Princess && g.map != Map::Island {
             p.push(problem(
                 "game.map",
-                "Capture the Princess is played on the island (Actual Castle against City)",
+                "Capture the Princess is played on the island (Actual Castle against New Castle)",
             ));
         }
         if self.rules.team_size > 10 {

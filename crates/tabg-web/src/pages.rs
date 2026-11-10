@@ -369,7 +369,7 @@ pub async fn settings(State(app): State<AppState>) -> Markup {
                                 option value="test" selected[g.mode == GameMode::Test] { "Test (no plane, no ring)" }
                                 option value="brawl" selected[g.mode == GameMode::Brawl] { "Brawl (castle, spawn houses)" }
                                 option value="bomb" selected[g.mode == GameMode::Bomb] { "Bomb (plant and defuse, rounds)" }
-                                option value="princess" selected[g.mode == GameMode::Princess] { "Capture the Princess (castle against city)" }
+                                option value="princess" selected[g.mode == GameMode::Princess] { "Capture the Princess (Actual Castle against New Castle)" }
                             }
                         }
                         div {

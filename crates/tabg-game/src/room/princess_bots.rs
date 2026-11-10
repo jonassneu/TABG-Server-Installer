@@ -23,6 +23,8 @@ const RESCUE_RANGE: f32 = 260.0;
 /// Attackers wait for each other this far from the other princess (inner and outer edge).
 const RALLY: (f32, f32) = (100.0, 150.0);
 const PATH_BUDGET: usize = 9000;
+/// A gateway is at most this long; a bot farther from the far end than that was pulled away.
+const MAX_CROSSING: f32 = 12.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Role {
@@ -35,6 +37,8 @@ pub(super) enum Role {
 pub(super) struct Mind {
     path_goal: Option<[f32; 3]>,
     path_at: f32,
+    /// The last search for `path_goal` found no way.
+    no_path: bool,
     /// The other base's hideout it searches next.
     search: usize,
     patrol: Option<([f32; 3], f32)>,
@@ -107,7 +111,9 @@ fn unstick(nav: &NavGrid, me: [f32; 3], ok: impl Fn([f32; 3]) -> bool) -> Option
     None
 }
 
-/// Can a walker go straight from `a` to `b` (no step too high, no water)?
+/// Can a walker go straight from `a` to `b` (no step too high, no water)? Ground far above
+/// counts as a wall: from the side, a house or a castle wall looks just like an arch, and
+/// gateways are walked through their links instead.
 fn straight_walkable(nav: &NavGrid, a: [f32; 3], b: [f32; 3]) -> bool {
     let d = flat(a, b);
     let steps = (d / 0.5).ceil().max(1.0) as usize;
@@ -117,8 +123,6 @@ fn straight_walkable(nav: &NavGrid, a: [f32; 3], b: [f32; 3]) -> bool {
         let (x, z) = (a[0] + (b[0] - a[0]) * t, a[2] + (b[2] - a[2]) * t);
         match nav.height(x, z) {
             Some(h) if (h - y).abs() <= 0.6 => y = h,
-            // Under an arch (gateway): stay on the level.
-            Some(h) if h > y + 2.0 => {}
             _ => return false,
         }
     }
@@ -516,9 +520,10 @@ impl Room {
             b.princess.path_goal = Some(goal);
             return;
         }
-        // Halfway through a gateway: finish it first.
+        // Halfway through a gateway: finish it first (unless a fight or a detour took it
+        // away from the gate; then walking straight there would go through walls).
         if let Some(far) = self.bots[&bot].princess.crossing {
-            if flat(far, me) > 0.6 {
+            if flat(far, me) > 0.6 && flat(far, me) < MAX_CROSSING {
                 self.bots.get_mut(&bot).expect("bot").path = vec![far];
                 return;
             }
@@ -542,11 +547,15 @@ impl Room {
                 }
             }
         }
+        // A search that found nothing isn't repeated every think (it's the most expensive).
         let fresh = {
             let b = &self.bots[&bot];
-            !b.path.is_empty()
-                && b.princess.path_goal.is_some_and(|g| flat(g, goal) < 3.0)
-                && now - b.princess.path_at < 4.0
+            b.princess.path_goal.is_some_and(|g| flat(g, goal) < 3.0)
+                && if b.path.is_empty() {
+                    b.princess.no_path && now - b.princess.path_at < 1.5
+                } else {
+                    now - b.princess.path_at < 4.0
+                }
         };
         if fresh {
             return;
@@ -579,6 +588,7 @@ impl Room {
             nav.flow_step(&field, me, 4).map(|next| vec![next])
         });
         let b = self.bots.get_mut(&bot).expect("bot");
+        b.princess.no_path = path.is_none();
         b.path = path.unwrap_or_default();
         b.princess.path_goal = Some(goal);
         b.princess.path_at = now;

@@ -1,7 +1,7 @@
 //! TABG's `EventCode` values: the first byte of every packet.
 //!
 //! Names keep TABG's own spelling (including typos such as `PingRecieved`) so they can be
-//! matched against the game. 126 codes; values 240-246 are free and used by our client mods.
+//! matched against the game. 126 codes; 239 and 240-247 are free and used by our client mods.
 
 macro_rules! event_codes {
     ($($name:ident = $value:literal,)*) => {

@@ -95,7 +95,7 @@ struct Args {
     /// off, log (report only) or enforce (refuse).
     #[arg(long, default_value = "log", value_parser = ["off", "log", "enforce"])]
     inventory_check: String,
-    /// Play Capture the Princess on the island (Actual Castle against City; needs --world).
+    /// Play Capture the Princess on the island (Actual Castle against New Castle; needs --world).
     #[arg(long)]
     princess: bool,
     /// Capture the Princess: players per team, bots fill the rest.

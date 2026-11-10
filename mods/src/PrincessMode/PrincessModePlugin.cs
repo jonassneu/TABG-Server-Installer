@@ -106,13 +106,16 @@ namespace TabgInstaller.PrincessMode
 
         private void Update()
         {
-            if (Input.GetKeyDown(_toggleKey.Value))
+            // Typing in chat or a menu isn't meant for us.
+            bool keys = !Player.usingInterface && !TABGChat.inChat;
+            if (keys && Input.GetKeyDown(_toggleKey.Value))
                 _hud.Value = !_hud.Value;
             if (_offer != null)
             {
                 if (Time.unscaledTime > _offerUntil)
                     _offer = null;
-                else
+                // Only while the menu is drawn (it needs the first state).
+                else if (keys && _state != null && Player.localPlayer != null)
                     for (int i = 0; i < _offer.Choices.Count && i < 3; i++)
                         if (Input.GetKeyDown(KeyCode.Alpha1 + i) || Input.GetKeyDown(KeyCode.Keypad1 + i))
                         {
@@ -210,7 +213,11 @@ namespace TabgInstaller.PrincessMode
                             var bytes = new byte[stream.Length];
                             int read = 0;
                             while (read < bytes.Length)
-                                read += stream.Read(bytes, read, bytes.Length - read);
+                            {
+                                int n = stream.Read(bytes, read, bytes.Length - read);
+                                if (n <= 0) break;
+                                read += n;
+                            }
                             var bundle = AssetBundle.LoadFromMemory(bytes);
                             _turretPrefab = bundle != null ? bundle.LoadAsset<GameObject>("weapon-turret") : null;
                         }
@@ -310,8 +317,9 @@ namespace TabgInstaller.PrincessMode
             {
                 if (lines[i].text.Length == 0)
                     continue;
-                _line.normal.textColor = lines[i].colour;
-                GUI.Label(new Rect(box.x + 10f, y, width - 20f, 21f), lines[i].text, i == 0 ? _title : _line);
+                GUIStyle style = i == 0 ? _title : _line;
+                style.normal.textColor = lines[i].colour;
+                GUI.Label(new Rect(box.x + 10f, y, width - 20f, 21f), lines[i].text, style);
                 y += 21f;
             }
         }

@@ -145,6 +145,7 @@ namespace TabgInstaller.PrincessMode
             catch (EndOfStreamException) { return false; }
             catch (IOException) { return false; }
             catch (ArgumentException) { return false; }
+            catch (FormatException) { return false; }
         }
 
         private static PrincessState ReadState(BinaryReader r)

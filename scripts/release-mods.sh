@@ -17,8 +17,8 @@ MODS=(AdminRadar.Client CoordsDisplay CustomGameSkins.Client CustomGrenades Dest
       FlyingControls ModSettings PerformanceClient PopupBlocker PrincessMode ProximityChat.Client RangeMap.Client
       Visuals)
 
-# Visuals embeds the shader bundle that Unity compiles (needs the editor + a licence, see there).
-[[ -f target/bundles/visuals ]] || scripts/build-shaders.sh
+# Visuals and PrincessMode embed bundles that Unity compiles (needs the editor + a licence, see there).
+[[ -f target/bundles/visuals && -f target/bundles/princess ]] || scripts/build-shaders.sh
 
 OUT=target/mods-dist
 rm -rf "$OUT"; mkdir -p "$OUT"

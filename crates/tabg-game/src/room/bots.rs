@@ -531,6 +531,15 @@ impl Room {
             return Vec::new();
         };
         if !p.alive || p.downed {
+            // Down: legs at rest (the last walking bits would keep them moving).
+            if let Some(p) = self.players.get_mut(&bot)
+                && p.alive
+                && (p.movement != 0 || p.direction != PackedDirection::ZERO)
+            {
+                p.movement = 0;
+                p.direction = PackedDirection::ZERO;
+                p.dirty = true;
+            }
             return Vec::new();
         }
         let mut out = Vec::new();

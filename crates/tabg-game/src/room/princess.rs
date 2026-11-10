@@ -866,6 +866,8 @@ impl Room {
         let team = pr.team;
         pr.escort = None;
         pr.contested = false;
+        // She comes back elsewhere: the gateway she was in is no longer hers to finish.
+        pr.crossing = None;
         let (back_at, own) = match killer_team {
             Some(t) if t == team => {
                 pr.stacks = (pr.stacks + 1).min(rules.own_kill_max);

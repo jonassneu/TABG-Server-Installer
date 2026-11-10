@@ -10,6 +10,8 @@ use crate::rng::Rng;
 
 /// Highest step a bot takes between neighbouring cells (metres per cell).
 const MAX_STEP: f32 = 0.7;
+/// Ground at least this far above a walker is a roof or an arch they pass under.
+const HEAD_ROOM: f32 = 2.5;
 /// Eye height above the feet.
 pub const EYE: f32 = 1.6;
 
@@ -118,7 +120,8 @@ impl NavGrid {
         if self.height_of_cell(ca.0, ca.1).is_none() || self.height_of_cell(cb.0, cb.1).is_none() {
             return false;
         }
-        let cost = ((a[0] - b[0]).hypot(a[2] - b[2]) * 10.0).max(10.0) as u32;
+        // Grid edges cost 10 per cell.
+        let cost = ((a[0] - b[0]).hypot(a[2] - b[2]) / self.cell * 10.0).max(10.0) as u32;
         let (ia, ib) = (ca.1 * self.width + ca.0, cb.1 * self.width + cb.0);
         self.links.entry(ia).or_default().push((ib, cost));
         self.links.entry(ib).or_default().push((ia, cost));
@@ -126,10 +129,12 @@ impl NavGrid {
     }
 
     /// Height a walker coming from height `from_y` stands at on `x, z`: the ground, except
-    /// under an arch or overhang (far above them), where they stay on their level.
+    /// under an arch or overhang (with room to stand under it), where they stay on their level.
+    /// Ground that only rises (a gateway's far end higher than its near one) is stepped onto,
+    /// or the walker would stay buried in it.
     pub fn walk_height(&self, from_y: f32, x: f32, z: f32) -> f32 {
         match self.height(x, z) {
-            Some(h) if h <= from_y + MAX_STEP * 1.5 => h,
+            Some(h) if h <= from_y + HEAD_ROOM => h,
             _ => from_y,
         }
     }
