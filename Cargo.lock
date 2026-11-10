@@ -3859,7 +3859,7 @@ dependencies = [
 
 [[package]]
 name = "tabg"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "clap",
  "serde",
@@ -3875,14 +3875,14 @@ dependencies = [
 
 [[package]]
 name = "tabg-enet-sys"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "tabg-game"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "serde",
  "tabg-protocol",
@@ -3890,7 +3890,7 @@ dependencies = [
 
 [[package]]
 name = "tabg-gui"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "chrono",
  "eframe",
@@ -3908,7 +3908,7 @@ dependencies = [
 
 [[package]]
 name = "tabg-host"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "base64 0.23.1",
  "dirs",
@@ -3932,7 +3932,7 @@ dependencies = [
 
 [[package]]
 name = "tabg-net"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "tabg-enet-sys",
  "thiserror 2.0.21",
@@ -3940,7 +3940,7 @@ dependencies = [
 
 [[package]]
 name = "tabg-probe"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "clap",
  "tabg-net",
@@ -3950,14 +3950,14 @@ dependencies = [
 
 [[package]]
 name = "tabg-protocol"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "tabg-server"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "clap",
  "ctrlc",
@@ -3978,7 +3978,7 @@ dependencies = [
 
 [[package]]
 name = "tabg-utp"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "base64 0.23.1",
  "getrandom 0.4.3",
@@ -3994,7 +3994,7 @@ dependencies = [
 
 [[package]]
 name = "tabg-web"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "axum",
  "getrandom 0.4.3",
@@ -4014,7 +4014,7 @@ dependencies = [
 
 [[package]]
 name = "tabg-world"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "serde",
  "serde_json",
