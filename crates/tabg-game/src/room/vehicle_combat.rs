@@ -33,6 +33,8 @@ struct Missile {
     born: f32,
     armor: Armor,
     history: VecDeque<V3>,
+    /// Fired by a base turret of this team (Capture the Princess), not by a player.
+    turret: Option<u8>,
 }
 
 #[derive(Debug)]
@@ -138,7 +140,7 @@ impl Room {
 
     /// How far along `direction` from `start` (up to `max`) the way is clear: the height field
     /// and vehicle hulls (except `skip` cars) stop it.
-    fn wall_distance(
+    pub(super) fn wall_distance(
         &self,
         start: V3,
         direction: V3,
@@ -321,11 +323,55 @@ impl Room {
             born: now,
             armor: Armor::default(),
             history: VecDeque::new(),
+            turret: None,
         };
         let mut out = self.missile_state(&m, now);
         self.combat.missiles.push(m);
         out.push(self.missile_reply(peer, now, 1.0, target, true));
         out
+    }
+
+    /// A base turret fires a homing missile at an aircraft (`car`). It flies like a player's,
+    /// passes through people and only hurts aircraft.
+    pub(super) fn fire_turret_missile(&mut self, team: u8, from: V3, car: i32) -> Vec<Outgoing> {
+        let now = self.last_now.unwrap_or(0.0);
+        let Some(target) = self.cars.get(&car).map(|c| c.position) else {
+            return Vec::new();
+        };
+        self.combat.serial += 1;
+        let start = add(from, [0.0, 1.0, 0.0]);
+        let m = Missile {
+            id: self.combat.serial,
+            target: missile::vehicle_target(car),
+            owner: super::NOBODY,
+            car: None,
+            position: start,
+            direction: normal(sub(target, start)),
+            guided: true,
+            born: now,
+            armor: Armor::default(),
+            history: VecDeque::new(),
+            turret: Some(team),
+        };
+        let out = self.missile_state(&m, now);
+        self.combat.missiles.push(m);
+        out
+    }
+
+    /// A turret missile went off: aircraft right there take the hit.
+    fn turret_blast(&mut self, at: V3) -> Vec<Outgoing> {
+        let hit: Vec<i32> = self
+            .vehicles
+            .aircraft
+            .keys()
+            .copied()
+            .filter(|c| {
+                self.cars
+                    .get(c)
+                    .is_some_and(|car| distance(car.position, at) < 7.0)
+            })
+            .collect();
+        hit.into_iter().flat_map(|c| self.turret_hit(c)).collect()
     }
 
     /// `MissileReply` `[f32 cooldown][f32 lock progress][i32 target][bool fired]`.
@@ -366,7 +412,11 @@ impl Room {
         let m = self.combat.missiles.remove(i);
         let mut out = Vec::new();
         if reason == 2 {
-            out.extend(self.explode(m.owner, m.position, true, m.id));
+            if m.turret.is_some() {
+                out.extend(self.turret_blast(m.position));
+            } else {
+                out.extend(self.explode(m.owner, m.position, true, m.id));
+            }
         }
         let mut w = message(kind::MISSILE_REMOVE);
         w.i32(m.id).vec3(m.position).u8(reason).u8(m.owner);
@@ -385,11 +435,12 @@ impl Room {
         let mut out = Vec::new();
         let mut i = 0;
         while i < self.combat.missiles.len() {
-            let (owner, born, guided) = {
+            let (owner, born, guided, turret) = {
                 let m = &self.combat.missiles[i];
-                (m.owner, m.born, m.guided)
+                (m.owner, m.born, m.guided, m.turret)
             };
-            if now - born >= missile::lifetime(guided) || !self.players.contains_key(&owner) {
+            let orphaned = turret.is_none() && !self.players.contains_key(&owner);
+            if now - born >= missile::lifetime(guided) || orphaned {
                 out.extend(self.remove_missile(i, 0));
                 continue;
             }

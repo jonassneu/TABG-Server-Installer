@@ -72,6 +72,19 @@ pub enum GameMode {
     Brawl,
     /// TABG's Bomb (the TABG_CS map): two teams, rounds with a buy phase, plant and defuse.
     Bomb,
+    /// Capture the Princess on the island: Actual Castle against City. Hold a gun on the other
+    /// team's princess to walk her to your cage. Friends need the flying-controls mod.
+    Princess,
+}
+
+/// How well the bots of a team without players play (Capture the Princess).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum BotSkill {
+    Easy,
+    #[default]
+    Normal,
+    Hard,
 }
 
 /// Which map to play.
@@ -269,6 +282,18 @@ pub struct Rules {
     pub bomb_time: f32,
     /// Bomb: seconds to defuse.
     pub defuse_time: f32,
+    /// Capture the Princess: players per team; bots fill the free places (0 = no bots).
+    pub team_size: u8,
+    /// Capture the Princess: how well the other team's bots play (easy, normal, hard). Bots on
+    /// your own team play at normal.
+    pub bot_skill: BotSkill,
+    /// Capture the Princess: the princess's walking speed in m/s while held at gunpoint.
+    pub princess_speed: f32,
+    /// Capture the Princess: enemy kills that earn a helicopter (0 = one per teammate, 3 to 8).
+    pub heli_kills: u8,
+    /// Capture the Princess: each base has two turrets that fire homing missiles at enemy
+    /// helicopters.
+    pub turrets: bool,
 }
 
 impl Default for Rules {
@@ -283,6 +308,11 @@ impl Default for Rules {
             round_time: 90.0,
             bomb_time: 30.0,
             defuse_time: 5.0,
+            team_size: 3,
+            bot_skill: BotSkill::Normal,
+            princess_speed: 3.5,
+            heli_kills: 0,
+            turrets: true,
         }
     }
 }
@@ -376,18 +406,26 @@ pub const HEADER: &str = "\
 
 /// Catalog id of the client mod `game.destruction` needs.
 pub const DESTRUCTION_MOD: &str = "destruction";
+/// Catalog id of the mod that flies helicopters (Capture the Princess needs it).
+pub const FLYING_MOD: &str = "flying-controls";
+/// Catalog id of the in-game settings mod (FlyingControls fails to load without it).
+pub const SETTINGS_MOD: &str = "mod-settings";
 
 impl ServerToml {
     /// The client mods friends need: `mods.client`, plus the Destruction mod when
-    /// `game.destruction` is on (unless it's listed already).
+    /// `game.destruction` is on and FlyingControls for Capture the Princess (unless listed).
     pub fn client_mods(&self) -> Vec<String> {
         let mut mods = self.mods.client.clone();
-        let listed = mods
-            .iter()
-            .any(|e| e.split('@').next() == Some(DESTRUCTION_MOD));
-        if self.game.destruction && !listed {
-            mods.push(DESTRUCTION_MOD.into());
-        }
+        let mut need = |id: &str, on: bool| {
+            let listed = mods.iter().any(|e| e.split('@').next() == Some(id));
+            if on && !listed {
+                mods.push(id.into());
+            }
+        };
+        need(DESTRUCTION_MOD, self.game.destruction);
+        // FlyingControls doesn't load without ModSettings (it uses its types), so both.
+        need(FLYING_MOD, self.game.mode == GameMode::Princess);
+        need(SETTINGS_MOD, self.game.mode == GameMode::Princess);
         mods
     }
 
@@ -507,6 +545,21 @@ impl ServerToml {
                 "game.map",
                 "Brawl and Bomb have their own maps; use map = \"island\"",
             ));
+        }
+        if g.mode == GameMode::Princess && g.map != Map::Island {
+            p.push(problem(
+                "game.map",
+                "Capture the Princess is played on the island (Actual Castle against City)",
+            ));
+        }
+        if self.rules.team_size > 10 {
+            p.push(problem("rules.team_size", "0 (no bots) to 10 per team"));
+        }
+        if !(1.0..=8.0).contains(&self.rules.princess_speed) {
+            p.push(problem("rules.princess_speed", "1 to 8 m/s"));
+        }
+        if self.rules.heli_kills > 50 {
+            p.push(problem("rules.heli_kills", "0 (by team size) to 50"));
         }
         if !(1..=30).contains(&self.rules.rounds_to_win) {
             p.push(problem("rules.rounds_to_win", "1 to 30 rounds"));
@@ -643,6 +696,26 @@ impl ServerToml {
             b.bomb_time = r.bomb_time;
             b.defuse_time = r.defuse_time;
         }
+        if g.mode == GameMode::Princess {
+            s.princess = Some(tabg_game::PrincessRules {
+                team_size: r.team_size,
+                bot_skill: match r.bot_skill {
+                    BotSkill::Easy => tabg_game::BotSkill::Easy,
+                    BotSkill::Normal => tabg_game::BotSkill::Normal,
+                    BotSkill::Hard => tabg_game::BotSkill::Hard,
+                },
+                walk_speed: r.princess_speed,
+                heli_kills: r.heli_kills,
+                turrets: r.turrets,
+                ..tabg_game::PrincessRules::island()
+            });
+            // Everyone comes back at their cage; the bots are the team fill, not `game.bots`.
+            s.respawn = Some(tabg_game::Respawn {
+                delay: r.respawn_delay,
+            });
+            s.bots = 0;
+            s.spell_drops = None;
+        }
         s.time_limit = r.time_limit;
         s.gun_game = r
             .gun_game
@@ -670,6 +743,8 @@ fn tabg_protocol_game_mode(mode: GameMode) -> u8 {
         GameMode::Test => 2,
         GameMode::Brawl => 1,
         GameMode::Bomb => 3,
+        // The island's scene loads only in Battle Royale.
+        GameMode::Princess => 0,
     }
 }
 

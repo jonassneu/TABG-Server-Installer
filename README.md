@@ -136,6 +136,7 @@ control your server.
 | Gun Game | Every kill gives you the next weapon; the first kill with the last weapon wins |
 | Brawl | Teams start in spawn houses on the castle map with the same loot. First team to 20 kills wins |
 | Bomb | TABG_CS: buy guns, T plants, CT defuses, sides switch at half time |
+| Capture the Princess | Actual Castle against New Castle: walk the other team's princess to your cage at gunpoint (see [Capture the Princess](#capture-the-princess)) |
 | Test | No plane or ring; used for the Shooting Range and the DevTest island |
 
 ### Presets
@@ -155,6 +156,7 @@ control your server.
 | Flying Vehicles | Battle Royale with helicopters, UFOs and hover taxis; `/vehicle` and `/fpv` for admins | `flying-controls` |
 | Shooting Range | WilhelmTest range with an all-items menu, respawn after 3 s | `range-map` |
 | Island Gun Game | Gun Game on the hidden DevTest island | `dev-test-map` |
+| Capture the Princess | Actual Castle against New Castle, bots fill both teams, loadouts to choose, helicopters for kills, base turrets | `flying-controls`, `mod-settings`, `destruction` |
 
 The client mods a preset needs are added to the share code automatically.
 
@@ -222,6 +224,7 @@ All of them are optional. Friends get them through the share code, never by hand
 | PopupBlocker | `popup-blocker` | Hides the anti-cheat popups in the modded copy | |
 | Destruction | `destruction` | Explosions break buildings, props and trees (see [Destruction](#destruction)). Added automatically with `game.destruction` | |
 | Visuals | `visuals` | Better lighting, clouds, smoke, weather and sea (see [Visuals](#visuals)) | F8 |
+| PrincessMode | `princess-mode` | Capture the Princess: a HUD with both princesses, the loadout menu, banners, cages and turrets you can see | F3 |
 
 ## Proximity Voice Chat
 
@@ -301,6 +304,43 @@ and every part has a setting in the **F8** menu. Admins can pick the weather for
 | Explosions | Light up their surroundings, with bloom and glow; flashbangs burn the view into your eyes |
 | Sea | Foam, richer colour and the sun glowing through the waves |
 | Image | A gentle colour grade and sharpening |
+
+## Capture the Princess
+
+Apply the **Capture the Princess** preset. Two teams play on the island, about 350 m apart:
+**Actual Castle** (the blue princess) against **New Castle** (the pink princess, who may hide in its
+round tower). Bots fill both teams up to `rules.team_size` (3 by default), so you can also play alone
+with two bots against three. Players in one TABG squad play on the same team; everyone else is spread
+over both.
+
+- Each team starts next to its **cage** and respawns there. Its princess hides somewhere in its base.
+- After every (re)spawn, and when you come home after at least 30 s away, you **choose a loadout**
+  from three random ones (Sniper, Rusher, Minigun, Samurai…) with 1, 2 or 3 within 30 s. Without
+  the `princess-mode` mod you get the first one straight away.
+- **Hold a gun on the other team's princess** and she walks to your cage, slowly. Keep the gun on her
+  the whole way (you have to walk; she never gets into a vehicle). Bring her into your cage to win.
+- Hold a gun on your **own** princess to walk her: inside your territory she goes where you point,
+  outside it she heads home. Both teams holding her at once: she stands still.
+- Killed by the **other team**, a princess is back home at once and walks at her normal speed again.
+  Killed by **her own team**, she comes back halfway between home and where she fell, but walks
+  15 % faster for the other team (up to three times).
+- Every few kills (about one per teammate: 3 in teams of three, 8 in teams of ten) a random player of
+  the team gets a **helicopter smoke grenade** ("You can now spawn a helicopter"): throw it where the
+  helicopter should land. Helicopters are fragile in the air.
+- Each base has two **turrets** that fire slow homing missiles at the other team's helicopters; two
+  hits bring one down.
+- Grenades and rockets break buildings (the preset turns on [Destruction](#destruction)).
+- Bots see in front of them (not behind), hear gunfire and running, turn at a human speed and take a
+  moment to aim; harder bots see further, react faster and hit more.
+- After a win everyone goes back to the menu; once they rejoin, **Start match now** starts the next round.
+
+Settings on the Rules tab: players per team, bot skill (easy, normal, hard: how well the other
+team's bots play; yours play at normal), the princess's walking speed, kills per helicopter and the
+turrets. Friends need the `flying-controls` and `mod-settings` mods (added to the share code). The
+optional `princess-mode` mod shows both princesses on a HUD (F3), the loadout menu, the banners, the
+cages and the turrets (a model from Kenney's CC0 Tower Defense Kit); without it the banners arrive
+as chat lines. TABG hides its join-code field, so friends find the server in **Server list** (set
+`network.public = true`, ideally with a password).
 
 ## Configuration
 

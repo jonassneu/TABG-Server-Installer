@@ -145,6 +145,8 @@ pub struct RoomSettings {
     pub bomb: Option<BombRules>,
     /// Brawl houses and loot (from a Brawl map dump); used when `game_mode` is Brawl.
     pub brawl: crate::brawl::BrawlRules,
+    /// Capture the Princess (Battle Royale's island, no plane or ring); `None`: off.
+    pub princess: Option<crate::princess::PrincessRules>,
     /// Let CustomGameSkins clients wear any built-in outfit (host opt-in).
     pub skins: bool,
     /// Range/DevTest map (needs the matching client mod and `game_mode` = Test).
@@ -197,6 +199,7 @@ impl Default for RoomSettings {
             test_map: None,
             skins: false,
             brawl: crate::brawl::BrawlRules::default(),
+            princess: None,
             bomb: None,
             soul_item: None,
             curses: Vec::new(),

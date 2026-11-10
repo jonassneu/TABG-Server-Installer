@@ -165,7 +165,7 @@ mod tests {
         }
         assert_eq!(EventCode::RoomInit as u8, 202);
         assert_eq!(EventCode::Join as u8, 255);
-        for free in 240..=247 {
+        for free in 239..=247 {
             assert_eq!(
                 EventCode::from_u8(free),
                 None,

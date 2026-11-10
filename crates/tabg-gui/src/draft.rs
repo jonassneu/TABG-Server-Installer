@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use tabg_host::ServerToml;
-use tabg_host::config::{BotRadar, GameMode, InventoryCheck, Map, NetMode, Teams};
+use tabg_host::config::{BotRadar, BotSkill, GameMode, InventoryCheck, Map, NetMode, Teams};
 
 pub type Items = BTreeMap<i32, String>;
 
@@ -104,6 +104,15 @@ pub fn mode_name(m: GameMode) -> &'static str {
         GameMode::Test => "Test",
         GameMode::Brawl => "Brawl",
         GameMode::Bomb => "Bomb",
+        GameMode::Princess => "Capture the Princess",
+    }
+}
+
+pub fn skill_name(s: BotSkill) -> &'static str {
+    match s {
+        BotSkill::Easy => "Easy",
+        BotSkill::Normal => "Normal",
+        BotSkill::Hard => "Hard",
     }
 }
 
@@ -303,6 +312,39 @@ pub const FIELDS: &[Field] = &[
         label: "Defuse time",
         section: Section::Rules,
         get: |c, _| seconds(c.rules.defuse_time),
+    },
+    Field {
+        label: "Team size",
+        section: Section::Rules,
+        get: |c, _| c.rules.team_size.to_string(),
+    },
+    Field {
+        label: "Bot skill",
+        section: Section::Rules,
+        get: |c, _| skill_name(c.rules.bot_skill).into(),
+    },
+    Field {
+        label: "Princess speed",
+        section: Section::Rules,
+        get: |c, _| {
+            format!(
+                "{} m/s",
+                crate::widgets::format_number(f64::from(c.rules.princess_speed))
+            )
+        },
+    },
+    Field {
+        label: "Kills per helicopter",
+        section: Section::Rules,
+        get: |c, _| match c.rules.heli_kills {
+            0 => "by team size".into(),
+            n => n.to_string(),
+        },
+    },
+    Field {
+        label: "Base turrets",
+        section: Section::Rules,
+        get: |c, _| on_off(c.rules.turrets),
     },
     Field {
         label: "Tick rate",

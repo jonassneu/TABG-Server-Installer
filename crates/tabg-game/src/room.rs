@@ -48,6 +48,11 @@ mod destruction;
 mod extras;
 mod inventory;
 mod maps;
+mod princess;
+mod princess_bots;
+mod princess_loadouts;
+#[cfg(test)]
+mod princess_tests;
 mod radar;
 mod skins;
 mod taxi;
@@ -241,6 +246,10 @@ pub struct Room {
     /// Server-side players and their minds.
     bots: bots::Brains,
     bot_ring_at: f32,
+    /// Capture the Princess: princesses, helicopters earned, turrets, the bots' maps.
+    princess: princess::PrincessState,
+    /// Recent gunshots bots can hear (Capture the Princess).
+    noises: Vec<bots::Noise>,
 }
 
 impl Room {
@@ -280,6 +289,8 @@ impl Room {
             next_drop_at: None,
             bots: BTreeMap::new(),
             bot_ring_at: 0.0,
+            princess: Default::default(),
+            noises: Vec::new(),
         };
         room.spawn_cars();
         room
@@ -357,6 +368,7 @@ impl Room {
         self.destruction_forget(peer);
         self.weather_forget(peer);
         self.forget_vehicle_client(peer);
+        self.forget_princess_client(peer);
         self.eject(peer);
         // Leaving mid-match drops your loot, like dying (official `PlayerLeaveCommand`).
         let mut dropped = Vec::new();
@@ -404,6 +416,9 @@ impl Room {
         }
         if packet.code == vehicles::VEHICLES {
             return self.vehicle_message(peer, &packet.payload);
+        }
+        if packet.code == princess::PRINCESS {
+            return self.princess_message(peer, &packet.payload);
         }
         if matches!(packet.code, maps::RANGE | maps::DEV_TEST) {
             return self.test_map(peer, packet.code, &packet.payload);
@@ -791,6 +806,9 @@ impl Room {
         if self.is_bomb() {
             return self.bomb_group();
         }
+        if self.is_princess_mode() {
+            return self.princess_group(squad_id);
+        }
         if squad_id != 0 {
             if let Some(mate) = self.players.values().find(|p| p.squad_id == squad_id) {
                 return mate.group;
@@ -890,6 +908,13 @@ impl Room {
             && let Some(spawn) = self.bomb_spawn(group)
         {
             return spawn;
+        }
+        if self.is_princess_mode() && self.settings.nav.is_some() {
+            // Everyone waits at their own base, next to the cage.
+            return SpawnPoint {
+                position: self.princess_spawn(group),
+                rotation: self.rng.range(0.0, 360.0),
+            };
         }
         if self.is_brawl()
             && let Some(house) = self.settings.brawl.house(self.solo(), group)
@@ -1233,6 +1258,7 @@ impl Room {
         let drone = req.item_id == crate::vehicles::drone::ITEM
             && self.drone_thrown(peer, &mut req.quantity, req.position);
         self.inventory_remove(peer, req.item_id, req.quantity);
+        let heli = self.princess_throw(peer, req.item_id, req.position, req.direction);
         let network_id = if drone || self.settings.grenades.contains(&req.item_id) {
             self.loot.reserve_id()
         } else {
@@ -1248,11 +1274,13 @@ impl Room {
             req.position,
             req.direction,
         );
-        vec![Outgoing::reliable(
+        let mut out = vec![Outgoing::reliable(
             Recipients::Many(self.near(peer)),
             EventCode::ItemThrown,
             payload,
-        )]
+        )];
+        out.extend(heli);
+        out
     }
 
     /// `RequestSeat`: get into or out of a car seat (official `RequestSeatCommand`).
@@ -1598,6 +1626,16 @@ impl Room {
         if header.player_index != peer || !self.players.get(&peer).is_some_and(|p| p.alive) {
             return Vec::new();
         }
+        if self.is_princess_mode()
+            && let Some(p) = self.players.get(&peer)
+        {
+            let noise = bots::Noise {
+                at: p.position,
+                time: self.last_now.unwrap_or(0.0),
+                group: p.group,
+            };
+            self.noises.push(noise);
+        }
         if header.ammo_type > -1 && header.shots > -1 {
             // Whatever a gun fires is ammo, even without the world's item names.
             self.settings.ammo.insert(header.ammo_type);
@@ -1647,6 +1685,12 @@ impl Room {
         if victim.downed {
             dmg = dmg.clamp(0.0, 50.0) * 0.12;
         }
+        if let Some(b) = self.bots.get_mut(&ev.victim) {
+            b.hurt_at = now;
+        }
+        let Some(victim) = self.players.get_mut(&ev.victim) else {
+            return Vec::new();
+        };
         victim.health -= dmg;
         if !victim.downed {
             victim.last_attacker = ev.attacker;
@@ -1710,12 +1754,16 @@ impl Room {
         if self.state != game_state::STARTED {
             return Vec::new();
         }
+        if !self.players.get(&victim).is_some_and(|p| p.alive) {
+            return Vec::new();
+        }
+        if let Some(i) = self.princess_of(victim) {
+            return self.princess_killed(victim, i);
+        }
+        self.bot_died(victim);
         let Some(p) = self.players.get_mut(&victim) else {
             return Vec::new();
         };
-        if !p.alive {
-            return Vec::new();
-        }
         p.alive = false;
         p.downed = false;
         p.health = 0.0;
@@ -1727,6 +1775,7 @@ impl Room {
         let p = self.players.get_mut(&victim).expect("still here");
         let (group, last_attacker, name) = (p.group, p.last_attacker, p.name.clone());
         let mut killer_name = None;
+        let mut killer_group = None;
         if let Some(killer) = self
             .players
             .get_mut(&last_attacker)
@@ -1734,6 +1783,7 @@ impl Room {
         {
             killer.kills += 1;
             killer_name = Some(killer.name.clone());
+            killer_group = Some(killer.group);
         }
         self.events.push(RoomEvent::Killed {
             victim: name.clone(),
@@ -1771,6 +1821,18 @@ impl Room {
         // game, where it would hand out other levels' weapons.
         if self.settings.drop_loot_on_death && self.settings.gun_game.is_empty() {
             out.extend(self.drop_inventory(victim));
+        }
+        if self.is_princess_mode() {
+            // Back at the cage after the respawn delay; the kill counts toward a helicopter.
+            let now = self.last_now.unwrap_or(0.0);
+            let delay = self.settings.respawn.map_or(5.0, |r| r.delay.max(0.0));
+            if let Some(p) = self.players.get_mut(&victim) {
+                p.respawn_at = Some(now + delay);
+            }
+            if let Some(g) = killer_group {
+                out.extend(self.princess_kill_credit(g));
+            }
+            return out;
         }
         if self.is_brawl() {
             // A wiped team comes back at its house (official `BrawlGameMode.TeamDead`).
@@ -1879,6 +1941,9 @@ impl Room {
 
     /// The landing/respawn items: the loadout plus the player's gun game level.
     fn give_loadout(&mut self, peer: u8) -> Vec<Outgoing> {
+        if self.is_princess_mode() {
+            return self.princess_loadout(peer);
+        }
         let mut items = self.settings.loadout.clone();
         if let Some(level) = self.players.get(&peer).and_then(|p| {
             self.settings
@@ -1896,7 +1961,7 @@ impl Room {
     /// Somewhere on the ground inside the ring: a random loot spot (they sit on floors and
     /// terrain), else a lobby spawn.
     fn respawn_position(&mut self, group: u8) -> [f32; 3] {
-        if self.is_brawl() {
+        if self.is_brawl() || self.is_princess_mode() {
             return self.spawn_for(group).position;
         }
         let (c, r) = (self.ring.white_center, self.ring.white_size * 0.45);
@@ -1937,7 +2002,9 @@ impl Room {
         for peer in due {
             let group = self.players[&peer].group;
             let position = self.respawn_position(group);
-            let rotation = self.rng.range(0.0, 360.0);
+            let rotation = self
+                .cage_facing(group, position)
+                .unwrap_or_else(|| self.rng.range(0.0, 360.0));
             let p = self.players.get_mut(&peer).expect("listed above");
             p.respawn_at = None;
             p.alive = true;
@@ -1963,6 +2030,7 @@ impl Room {
             out.push(Self::broadcast(EventCode::PlayerRespawn, w.into_inner()));
             out.extend(self.chunk_changed(peer, chunk_of(position)));
             out.extend(self.give_loadout(peer));
+            out.extend(self.princess_regrant(peer));
         }
         out
     }
@@ -2041,7 +2109,12 @@ impl Room {
         let mut out = Vec::new();
         match self.state {
             game_state::WAITING_FOR_PLAYERS => {
-                let players = self.players.len();
+                // Capture the Princess fills its teams with bots: only people count.
+                let players = if self.is_princess_mode() {
+                    self.players.keys().filter(|p| !self.is_bot(**p)).count()
+                } else {
+                    self.players.len()
+                };
                 let enough = players >= usize::from(self.settings.players_to_start.max(1));
                 let forced = self.settings.force_start.is_some_and(|f| {
                     now + 2.0 > f.after_seconds && players >= usize::from(f.min_players.max(1))
@@ -2061,6 +2134,13 @@ impl Room {
                 self.countdown_left -= dt;
                 if self.countdown_left <= 0.0 {
                     out.extend(self.start_match(now));
+                }
+            }
+            game_state::STARTED if self.is_princess_mode() => {
+                out.extend(self.respawn_due(now));
+                out.extend(self.tick_princess(now, dt));
+                if let Some(winner) = self.princess_winner() {
+                    out.extend(self.end_match(now, winner));
                 }
             }
             game_state::STARTED => {
@@ -2117,19 +2197,7 @@ impl Room {
                     })
                 };
                 if let Some(winner) = winner {
-                    self.state = game_state::ENDED;
-                    self.ended_at = Some(now);
-                    let players = self
-                        .players
-                        .values()
-                        .filter(|p| p.group == winner)
-                        .map(|p| p.name.clone())
-                        .collect();
-                    self.events.push(RoomEvent::Won {
-                        team: winner,
-                        players,
-                    });
-                    out.push(Self::state_changed(GameStateChanged::Ended { winner }));
+                    out.extend(self.end_match(now, winner));
                 }
             }
             game_state::ENDED => {
@@ -2151,6 +2219,23 @@ impl Room {
             _ => {}
         }
         out
+    }
+
+    /// The match is over: `winner` (a group, or `NO_WINNER`) gets the win screen.
+    fn end_match(&mut self, now: f32, winner: u8) -> Vec<Outgoing> {
+        self.state = game_state::ENDED;
+        self.ended_at = Some(now);
+        let players = self
+            .players
+            .values()
+            .filter(|p| p.group == winner)
+            .map(|p| p.name.clone())
+            .collect();
+        self.events.push(RoomEvent::Won {
+            team: winner,
+            players,
+        });
+        vec![Self::state_changed(GameStateChanged::Ended { winner })]
     }
 
     /// Countdown over: everyone boards the plane and the ring starts.
@@ -2180,6 +2265,9 @@ impl Room {
             LootWorld::spawn(&self.settings.loot, self.settings.loot_keep, &mut self.rng);
         self.modifier = modifier;
         self.loot = loot;
+        if self.is_princess_mode() {
+            return self.start_princess_match();
+        }
         if self.is_brawl() {
             // Brawl: same loot in every house, then the doors open (official `OpenDoors`).
             self.loot = self.settings.brawl.spawn_loot(self.solo(), &mut self.rng);
@@ -2253,6 +2341,9 @@ impl Room {
         self.ring = Ring::new(self.settings.ring.clone(), &mut self.rng);
         self.spawn_cars();
         self.destruction.reset_pending = true;
+        self.princess
+            .princesses
+            .retain(|p| self.players.contains_key(&p.index));
     }
 
     /// Advance to `now` (seconds since the room started): run the match, and at the tick rate send
@@ -2351,6 +2442,11 @@ impl Room {
 
     /// What others see of `p`: on foot, as a passenger, or as the driver (with the car's pose).
     fn entity_update(&self, p: &Player) -> EntityUpdate {
+        // Bots stand on the grid with their feet; the client wants the hip.
+        let mut position = p.position;
+        if self.is_bot(p.index) {
+            position[1] += bots::HIP;
+        }
         match p.seat {
             Some((car_index, _, true)) if self.cars.contains_key(&car_index) => {
                 let car = &self.cars[&car_index];
@@ -2369,7 +2465,7 @@ impl Room {
             }
             Some(_) => EntityUpdate::on_foot(
                 p.index,
-                p.position,
+                position,
                 p.rotation,
                 p.ads,
                 p.direction,
@@ -2378,7 +2474,7 @@ impl Room {
             ),
             None => EntityUpdate::on_foot(
                 p.index,
-                p.position,
+                position,
                 p.rotation,
                 p.ads,
                 p.direction,
@@ -4366,6 +4462,7 @@ mod tests {
             width: n,
             depth: n,
             heights: vec![20 * 64; n * n],
+            ..Default::default()
         })
     }
 

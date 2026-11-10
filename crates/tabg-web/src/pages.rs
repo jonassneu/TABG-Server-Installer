@@ -10,7 +10,7 @@ use axum::http::HeaderValue;
 use axum::response::{IntoResponse, Response};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
 use tabg_host::apply::{self, Applied, ApplyError};
-use tabg_host::config::{BotRadar, GameMode, InventoryCheck, Map, NetMode, Teams};
+use tabg_host::config::{BotRadar, BotSkill, GameMode, InventoryCheck, Map, NetMode, Teams};
 use tabg_host::supervisor::{HostStatus, LogLine, RunState};
 use tabg_host::{ServerToml, backup, presets};
 
@@ -369,6 +369,7 @@ pub async fn settings(State(app): State<AppState>) -> Markup {
                                 option value="test" selected[g.mode == GameMode::Test] { "Test (no plane, no ring)" }
                                 option value="brawl" selected[g.mode == GameMode::Brawl] { "Brawl (castle, spawn houses)" }
                                 option value="bomb" selected[g.mode == GameMode::Bomb] { "Bomb (plant and defuse, rounds)" }
+                                option value="princess" selected[g.mode == GameMode::Princess] { "Capture the Princess (castle against city)" }
                             }
                         }
                         div {
@@ -431,6 +432,19 @@ pub async fn settings(State(app): State<AppState>) -> Markup {
                         (field("Bomb: round time (s)", "round_time", c.rules.round_time, ""))
                         (field("Bomb: bomb timer (s)", "bomb_time", c.rules.bomb_time, ""))
                         (field("Bomb: defuse time (s)", "defuse_time", c.rules.defuse_time, ""))
+                        (field("Princess: players per team", "team_size", c.rules.team_size, "Bots fill the free places; 0: no bots."))
+                        div {
+                            label { "Princess: bot skill" }
+                            select name="bot_skill" {
+                                option value="easy" selected[c.rules.bot_skill == BotSkill::Easy] { "Easy" }
+                                option value="normal" selected[c.rules.bot_skill == BotSkill::Normal] { "Normal" }
+                                option value="hard" selected[c.rules.bot_skill == BotSkill::Hard] { "Hard" }
+                            }
+                            small { "For the other team's bots; yours play at normal." }
+                        }
+                        (field("Princess: walking speed (m/s)", "princess_speed", c.rules.princess_speed, "While held at gunpoint."))
+                        (field("Princess: kills per helicopter", "heli_kills", c.rules.heli_kills, "0: one per teammate (3 to 8)."))
+                        (check("Princess: turrets defend the bases from helicopters", "turrets", c.rules.turrets))
                     }
                 }
                 div.row { button { "Save and apply" } span id="result" {} }
@@ -690,6 +704,7 @@ fn settings_from_form(
         Some("test") => GameMode::Test,
         Some("brawl") => GameMode::Brawl,
         Some("bomb") => GameMode::Bomb,
+        Some("princess") => GameMode::Princess,
         _ => GameMode::BattleRoyale,
     };
     c.game.map = match f.get("map").map(String::as_str) {
@@ -738,6 +753,15 @@ fn settings_from_form(
     parse(f, "round_time", &mut c.rules.round_time)?;
     parse(f, "bomb_time", &mut c.rules.bomb_time)?;
     parse(f, "defuse_time", &mut c.rules.defuse_time)?;
+    parse(f, "team_size", &mut c.rules.team_size)?;
+    c.rules.bot_skill = match f.get("bot_skill").map(String::as_str) {
+        Some("easy") => BotSkill::Easy,
+        Some("hard") => BotSkill::Hard,
+        _ => BotSkill::Normal,
+    };
+    parse(f, "princess_speed", &mut c.rules.princess_speed)?;
+    parse(f, "heli_kills", &mut c.rules.heli_kills)?;
+    c.rules.turrets = f.contains_key("turrets");
     Ok(c)
 }
 

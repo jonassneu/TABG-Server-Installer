@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use eframe::egui::{self, Rect, RichText, Ui, pos2, vec2};
 use tabg_host::ServerToml;
-use tabg_host::config::{BotRadar, GameMode, InventoryCheck, Map, Problem, Teams};
+use tabg_host::config::{BotRadar, BotSkill, GameMode, InventoryCheck, Map, Problem, Teams};
 
 use crate::app::Gui;
 use crate::draft::{self, percent, time_of_day};
@@ -50,6 +50,7 @@ fn left(ui: &mut Ui, d: &mut ServerToml, cx: &Ctx, collapsed: &mut BTreeSet<Stri
                     (GameMode::Test, "Test (no plane, no ring)"),
                     (GameMode::Brawl, "Brawl"),
                     (GameMode::Bomb, "Bomb"),
+                    (GameMode::Princess, "Capture the Princess"),
                 ],
                 170.0,
             );
@@ -233,6 +234,53 @@ fn right(
         });
         problem(ui, cx.problems, "rules.gun_game", w);
     });
+    if d.game.mode == GameMode::Princess {
+        section(ui, collapsed, "Capture the Princess", true, |ui| {
+            field(ui, "Players per team", w, |ui| {
+                number(ui, "team-size", &mut d.rules.team_size, NUM, 1.0);
+            });
+            hint(ui, w, muted("Bots fill the free places. 0 means no bots"));
+            problem(ui, cx.problems, "rules.team_size", w);
+            field(ui, "Bot skill", w, |ui| {
+                select(
+                    ui,
+                    "bot-skill",
+                    &mut d.rules.bot_skill,
+                    &[
+                        (BotSkill::Easy, "Easy"),
+                        (BotSkill::Normal, "Normal"),
+                        (BotSkill::Hard, "Hard"),
+                    ],
+                    110.0,
+                );
+            });
+            hint(
+                ui,
+                w,
+                muted("For the other team's bots. Yours play at normal"),
+            );
+            field(ui, "Princess speed", w, |ui| {
+                number(ui, "princess-speed", &mut d.rules.princess_speed, NUM, 0.5);
+                ui.label(text("m/s").color(MUTED));
+            });
+            hint(ui, w, muted("How fast she walks while held at gunpoint"));
+            problem(ui, cx.problems, "rules.princess_speed", w);
+            field(ui, "Kills per helicopter", w, |ui| {
+                number(ui, "heli-kills", &mut d.rules.heli_kills, NUM, 1.0);
+            });
+            hint(ui, w, muted("0 means one per teammate, 3 to 8"));
+            problem(ui, cx.problems, "rules.heli_kills", w);
+            field(ui, "Base turrets", w, |ui| {
+                check(ui, "Base turrets", &mut d.rules.turrets);
+                changed_tag(ui, d.rules.turrets != cx.saved.rules.turrets);
+            });
+            hint(
+                ui,
+                w,
+                muted("Two per base, homing missiles at enemy helicopters"),
+            );
+        });
+    }
     if d.game.mode == GameMode::Bomb {
         section(ui, collapsed, "Bomb", false, |ui| {
             field(ui, "Rounds to win", w, |ui| {

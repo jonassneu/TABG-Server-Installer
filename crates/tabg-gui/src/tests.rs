@@ -632,3 +632,32 @@ fn drives_a_real_server() {
     let _ = person.kill();
     let _ = person.wait();
 }
+
+#[test]
+fn capture_the_princess_shows_its_settings_and_a_start_button() {
+    let f = fixture(true);
+    let mut h = live(&f);
+    sync_ctx(&mut h);
+    h.state_mut().status.phase = "lobby".into();
+    h.run_steps(2);
+    // A new round starts from the lobby with the bar's button.
+    h.get_by_label("Start match now");
+    open(&mut h, Tab::GameMode);
+    h.get_by_label("Capture the Princess").click();
+    h.run_steps(3);
+    h.get_by_label("What changes");
+    h.get_by_label("Use Capture the Princess").click();
+    h.run_steps(3);
+    // A new mode restarts the server, which asks first with people online.
+    h.get_by_label("Save and restart").click();
+    h.step();
+    settle(&mut h, |g| g.saved.preset == "capture-the-princess");
+    let saved = on_disk(&f);
+    assert_eq!(saved.game.mode, tabg_host::config::GameMode::Princess);
+    let mods = saved.client_mods();
+    assert!(
+        mods.iter().any(|m| m == "flying-controls") && mods.iter().any(|m| m == "mod-settings")
+    );
+    open(&mut h, Tab::Rules);
+    h.get_by_label("Base turrets");
+}

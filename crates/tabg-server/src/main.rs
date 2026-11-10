@@ -95,6 +95,19 @@ struct Args {
     /// off, log (report only) or enforce (refuse).
     #[arg(long, default_value = "log", value_parser = ["off", "log", "enforce"])]
     inventory_check: String,
+    /// Play Capture the Princess on the island (Actual Castle against City; needs --world).
+    #[arg(long)]
+    princess: bool,
+    /// Capture the Princess: players per team, bots fill the rest.
+    #[arg(long, default_value_t = 3)]
+    team_size: u8,
+    /// Capture the Princess: how well the other team's bots play.
+    #[arg(long, default_value = "normal", value_parser = ["easy", "normal", "hard"])]
+    bot_skill: String,
+    /// Capture the Princess, testing: both princesses wait next to team 0's cage, in view of
+    /// whoever spawns there.
+    #[arg(long)]
+    princess_showcase: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -274,6 +287,34 @@ fn main() {
                 .collect();
             settings.loot.spots.clear();
             settings.cars.clear();
+        }
+    }
+
+    if args.princess {
+        settings.princess = Some(tabg_game::PrincessRules {
+            team_size: args.team_size,
+            bot_skill: match args.bot_skill.as_str() {
+                "easy" => tabg_game::BotSkill::Easy,
+                "hard" => tabg_game::BotSkill::Hard,
+                _ => tabg_game::BotSkill::Normal,
+            },
+            ..tabg_game::PrincessRules::island()
+        });
+        if args.princess_showcase
+            && let Some(rules) = settings.princess.as_mut()
+        {
+            let cage = rules.bases[0].cage;
+            rules.bases[0].hideouts = vec![[cage[0] + 2.0, cage[1], cage[2] - 2.0]];
+            rules.bases[1].hideouts = vec![[cage[0] + 2.0, cage[1], cage[2] + 2.0]];
+            rules.team_size = 1;
+        }
+        settings.respawn = Some(tabg_game::Respawn {
+            delay: args.respawn.unwrap_or(8.0),
+        });
+        settings.bots = 0;
+        settings.spell_drops = None;
+        if settings.nav.is_none() {
+            tracing::warn!("Capture the Princess needs the walkability grid next to --world");
         }
     }
 

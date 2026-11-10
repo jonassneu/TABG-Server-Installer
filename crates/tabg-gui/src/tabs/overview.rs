@@ -103,6 +103,7 @@ fn player_row(gui: &mut Gui, ui: &mut Ui, p: &PlayerInfo) {
 
 fn online(gui: &mut Gui, ui: &mut Ui) {
     let players = gui.status.players.clone();
+    let princess = gui.saved.game.mode == tabg_host::config::GameMode::Princess;
     let title = online_title(&players, gui.saved.game.teams);
     card_fill(
         ui,
@@ -143,8 +144,17 @@ fn online(gui: &mut Gui, ui: &mut Ui) {
                         if i > 0 {
                             hline(ui, LINE_SOFT);
                         }
+                        let title = if princess {
+                            match team {
+                                0 => "Actual Castle".to_owned(),
+                                1 => "New Castle".to_owned(),
+                                _ => "Princess".to_owned(),
+                            }
+                        } else {
+                            format!("Squad {}", team + 1)
+                        };
                         row(ui, 34.0, None, |ui, rect| {
-                            cell(ui, rect, 16.0, 200.0, muted(format!("Squad {}", team + 1)));
+                            cell(ui, rect, 16.0, 200.0, muted(title));
                         });
                         for p in members {
                             player_row(gui, ui, p);
@@ -229,6 +239,11 @@ fn match_card(gui: &mut Gui, ui: &mut Ui) {
                 fact(ui, "Preset", text(preset));
                 fact(ui, "Mode", text(mode));
                 fact(ui, "Restarts", monospace(restarts.to_string()));
+                if phase == "ended" {
+                    ui.label(muted(
+                        "Players go back to the menu in a moment; start the next round once they rejoin",
+                    ));
+                }
             });
         },
     );

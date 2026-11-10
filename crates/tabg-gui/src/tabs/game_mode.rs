@@ -25,7 +25,10 @@ const GROUPS: [(&str, &[&str]); 3] = [
         "Respawn modes",
         &["deathmatch", "gun-game", "island-gun-game"],
     ),
-    ("Other modes", &["brawl", "bomb", "shooting-range"]),
+    (
+        "Other modes",
+        &["capture-the-princess", "brawl", "bomb", "shooting-range"],
+    ),
 ];
 
 fn after(gui: &Gui, preset: &Preset) -> Result<ServerToml, String> {

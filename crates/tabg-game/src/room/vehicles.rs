@@ -406,6 +406,52 @@ impl Room {
                 "no clear, flat ground nearby; move to an open area".into(),
             );
         };
+        let out = self.spawn_custom(peer, &t, position, yaw);
+        let d = length(sub(position, me));
+        (out, format!("spawning a new {} {d:.0} m away", t.name))
+    }
+
+    /// A vehicle of type `name` on clear, flat ground around `at` (Capture the Princess calls
+    /// in helicopters this way). Only FlyingControls clients see it.
+    pub(super) fn spawn_vehicle_near(
+        &mut self,
+        owner: u8,
+        name: &str,
+        at: V3,
+        yaw: f32,
+    ) -> Result<Vec<Outgoing>, String> {
+        let t = self
+            .settings
+            .vehicles
+            .types
+            .iter()
+            .find(|t| t.name.eq_ignore_ascii_case(name))
+            .cloned()
+            .ok_or("no vehicle data; run tabg setup again")?;
+        if !self.vehicle_clients().contains(&owner) {
+            return Err("flying needs the flying-controls mod".into());
+        }
+        if !self.players.get(&owner).is_some_and(|p| p.alive) {
+            return Err("you need to be alive".into());
+        }
+        self.vehicles.custom.retain(|i| self.cars.contains_key(i));
+        if self.vehicles.custom.len() >= MAX_CUSTOM {
+            return Err(format!("at most {MAX_CUSTOM} extra vehicles"));
+        }
+        // Around the smoke first, then in front of the thrower.
+        let back = add(at, scale(euler_forward(yaw), -10.0));
+        let position = self
+            .find_space(back, yaw, &t)
+            .or_else(|| {
+                let me = self.players.get(&owner).map_or(at, |p| p.position);
+                self.find_space(me, yaw, &t)
+            })
+            .ok_or("no clear, flat ground there; throw it onto an open area")?;
+        Ok(self.spawn_custom(owner, &t, position, yaw))
+    }
+
+    fn spawn_custom(&mut self, peer: u8, t: &VehicleType, position: V3, yaw: f32) -> Vec<Outgoing> {
+        let now = self.last_now.unwrap_or(0.0);
         let index = self.next_car_index();
         let rotation = euler([0.0, yaw, 0.0]);
         let mut car = Car::spawn(&CarSpawn {
@@ -436,9 +482,7 @@ impl Room {
         if rules::is_aircraft(&t.name) {
             self.track_aircraft(index, &t.name, now);
         }
-        let out = self.to_vehicle_clients(w);
-        let d = length(sub(position, me));
-        (out, format!("spawning a new {} {d:.0} m away", t.name))
+        self.to_vehicle_clients(w)
     }
 
     /// `/vehicles`: what's on the map.
@@ -824,6 +868,12 @@ impl Room {
     pub(super) fn is_aircraft_car(&self, car: i32) -> bool {
         self.vehicles.aircraft.contains_key(&car)
     }
+}
+
+/// Horizontal unit vector for a yaw in degrees (Unity: 0 = +z).
+fn euler_forward(yaw: f32) -> V3 {
+    let a = yaw.to_radians();
+    [a.sin(), 0.0, a.cos()]
 }
 
 fn quat_mul(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {

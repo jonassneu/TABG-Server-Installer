@@ -1,0 +1,32 @@
+title = "Capture the Princess"
+description = "Actual Castle against City. Each team hides a princess in its base and respawns next to its cage. Hold a gun on the other team's princess and she walks to your cage: bring her in to win. Every few kills earn a helicopter, and turrets guard the bases. Bots fill both teams. Friends need the flying-controls mod (included in the share code)."
+
+[config.game]
+mode = "princess"
+map = "island"
+teams = "squad"
+players_to_start = 2
+countdown = 15
+force_start_after = 45
+force_start_min_players = 1
+destruction = true
+loot_amount = 0.1
+unused_vehicles = 0.1
+
+[config.rules]
+respawn = true
+respawn_delay = 8
+time_limit = 0
+gun_game = []
+team_size = 3
+bot_skill = "normal"
+princess_speed = 3.5
+heli_kills = 0
+turrets = true
+
+[config]
+loadout = [
+  { item = 160, qty = 1 },   # M16
+  { item = 6, qty = 240 },   # Normal Ammo
+  { item = 131, qty = 3 },   # Bandage
+]
