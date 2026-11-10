@@ -162,7 +162,7 @@ control your server.
 | Flying Vehicles | Battle Royale with helicopters, UFOs and hover taxis; `/vehicle` and `/fpv` for admins | `flying-controls` |
 | Shooting Range | WilhelmTest range with an all-items menu, respawn after 3 s | `range-map` |
 | Island Gun Game | Gun Game on the hidden DevTest island | `dev-test-map` |
-| Capture the Princess | Actual Castle against New Castle, bots fill both teams, loadouts to choose, helicopters for kills, base turrets | `flying-controls`, `mod-settings`, `destruction` |
+| Capture the Princess | Actual Castle against New Castle, bots fill both teams, loadouts to choose, helicopters for kills, base turrets | `flying-controls`, `mod-settings`, `destruction`, `princess-mode` |
 
 The client mods a preset needs are added to the share code automatically.
 
@@ -298,8 +298,9 @@ furniture and rocks crack open, whatever loses its support comes down, and trees
 ## Visuals
 
 A client-side graphics upgrade on top of TABG's own look. It changes nothing other players see,
-and every part has a setting in the **F8** menu. Admins can pick the weather for everyone with
-`/weather`.
+and every part has a setting in the **F8** menu. The host picks the weather for everyone with
+Visuals on the **Weather** card of the Overview tab (`game.weather`, saved for the next start);
+admins can also change it in game with `/weather`.
 
 | Part | What it does |
 |---|---|
@@ -321,8 +322,8 @@ over both.
 
 - Each team starts next to its **cage** and respawns there. Its princess hides somewhere in its base.
 - After every (re)spawn, and when you come home after at least 30 s away, you **choose a loadout**
-  from three random ones (Sniper, Rusher, Minigun, Samurai…) with 1, 2 or 3 within 30 s. Without
-  the `princess-mode` mod you get the first one straight away.
+  from three random ones (Sniper, Rusher, Minigun, Samurai…) with 1, 2 or 3 within 30 s. Players
+  who joined without the share code get the first one straight away.
 - **Hold a gun on the other team's princess** and she walks to your cage, slowly. Keep the gun on her
   the whole way (you have to walk; she never gets into a vehicle). Bring her into your cage to win.
 - Hold a gun on your **own** princess to walk her: inside your territory she goes where you point,
@@ -342,10 +343,10 @@ over both.
 
 Settings on the Rules tab: players per team, bot skill (easy, normal, hard: how well the other
 team's bots play; yours play at normal), the princess's walking speed, kills per helicopter and the
-turrets. Friends need the `flying-controls` and `mod-settings` mods (added to the share code). The
-optional `princess-mode` mod shows both princesses on a HUD (F3), the loadout menu, the banners, the
-cages and the turrets (a model from Kenney's CC0 Tower Defense Kit); without it the banners arrive
-as chat lines. TABG hides its join-code field, so friends find the server in **Server list** (set
+turrets. The share code brings the mods friends need: `princess-mode` draws the cages and the
+turrets (a model from Kenney's CC0 Tower Defense Kit), the HUD with both princesses (F3), the
+loadout menu and the banners; `flying-controls` and `mod-settings` fly the helicopters. Players
+without the mods still play, but see no cages and get the banners as chat lines. TABG hides its join-code field, so friends find the server in **Server list** (set
 `network.public = true`, ideally with a password).
 
 ## Configuration

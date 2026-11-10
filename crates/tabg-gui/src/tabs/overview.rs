@@ -275,6 +275,47 @@ fn message_card(gui: &mut Gui, ui: &mut Ui) {
     );
 }
 
+/// One click sets the weather for everyone with Visuals: saved, and the running server sends it
+/// at once (an admin's `/weather` still works until the next pick here).
+fn weather_card(gui: &mut Gui, ui: &mut Ui) {
+    let current = gui.saved.game.weather.clone();
+    let has_visuals = gui
+        .saved
+        .client_mods()
+        .iter()
+        .any(|m| m.split('@').next() == Some("visuals"));
+    card(
+        ui,
+        "Weather",
+        |ui| {
+            if !has_visuals {
+                ui.label(muted("Needs the Visuals mod"));
+            }
+        },
+        |ui| {
+            padded(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
+                    let choices = std::iter::once("Auto").chain(tabg_game::WEATHERS);
+                    for name in choices {
+                        let value = if name == "Auto" { "auto" } else { name };
+                        let on = current.eq_ignore_ascii_case(value);
+                        if chip(ui, name, on).clicked() && !on && !gui.applying {
+                            let mut next = gui.saved.clone();
+                            next.game.weather = value.to_owned();
+                            gui.apply(next, format!("weather {}", name.to_lowercase()));
+                        }
+                    }
+                });
+                ui.add_space(4.0);
+                ui.label(muted(
+                    "Auto follows the biome. Players see it with the Visuals mod",
+                ));
+            });
+        },
+    );
+}
+
 fn activity(gui: &mut Gui, ui: &mut Ui) {
     let lines: Vec<&LogLine> = gui.log.iter().filter(|l| is_activity(l)).collect();
     card_fill(
@@ -325,6 +366,7 @@ pub fn show(gui: &mut Gui, ui: &mut Ui) {
         ui.spacing_mut().item_spacing.y = 10.0;
         match_card(gui, ui);
         message_card(gui, ui);
+        weather_card(gui, ui);
         activity(gui, ui);
     });
 }

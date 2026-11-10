@@ -197,6 +197,9 @@ pub struct Game {
     pub unused_vehicles: f32,
     /// At most this many unused vehicles per match.
     pub unused_vehicles_max: u8,
+    /// Weather for everyone with the visuals mod: "auto" (each follows the biome) or one of
+    /// Clear, Overcast, Mist, Rain, Storm, Flurries, Snowfall, Blizzard, Haze, Sandstorm.
+    pub weather: String,
 }
 
 impl Default for Game {
@@ -229,6 +232,7 @@ impl Default for Game {
             inventory_check: InventoryCheck::Log,
             unused_vehicles: 0.0,
             unused_vehicles_max: 15,
+            weather: "auto".into(),
         }
     }
 }
@@ -410,10 +414,13 @@ pub const DESTRUCTION_MOD: &str = "destruction";
 pub const FLYING_MOD: &str = "flying-controls";
 /// Catalog id of the in-game settings mod (FlyingControls fails to load without it).
 pub const SETTINGS_MOD: &str = "mod-settings";
+/// Catalog id of the Capture the Princess mod (cages, turrets, HUD and the loadout menu).
+pub const PRINCESS_MOD: &str = "princess-mode";
 
 impl ServerToml {
     /// The client mods friends need: `mods.client`, plus the Destruction mod when
-    /// `game.destruction` is on and FlyingControls for Capture the Princess (unless listed).
+    /// `game.destruction` is on, and for Capture the Princess its own mod and FlyingControls
+    /// (unless listed).
     pub fn client_mods(&self) -> Vec<String> {
         let mut mods = self.mods.client.clone();
         let mut need = |id: &str, on: bool| {
@@ -426,6 +433,8 @@ impl ServerToml {
         // FlyingControls doesn't load without ModSettings (it uses its types), so both.
         need(FLYING_MOD, self.game.mode == GameMode::Princess);
         need(SETTINGS_MOD, self.game.mode == GameMode::Princess);
+        // Without it nobody sees the cages or turrets, or gets to choose a loadout.
+        need(PRINCESS_MOD, self.game.mode == GameMode::Princess);
         mods
     }
 
@@ -552,6 +561,16 @@ impl ServerToml {
                 "Capture the Princess is played on the island (Actual Castle against New Castle)",
             ));
         }
+        if !g.weather.eq_ignore_ascii_case("auto")
+            && !tabg_game::WEATHERS
+                .iter()
+                .any(|w| w.eq_ignore_ascii_case(&g.weather))
+        {
+            p.push(problem(
+                "game.weather",
+                "auto, or one of Clear, Overcast, Mist, Rain, Storm, Flurries, Snowfall, Blizzard, Haze, Sandstorm",
+            ));
+        }
         if self.rules.team_size > 10 {
             p.push(problem("rules.team_size", "0 (no bots) to 10 per team"));
         }
@@ -645,6 +664,7 @@ impl ServerToml {
         s.vehicles.unused_chance = g.unused_vehicles;
         s.vehicles.unused_max = usize::from(g.unused_vehicles_max);
         s.destruction = g.destruction;
+        s.weather = (!g.weather.eq_ignore_ascii_case("auto")).then(|| g.weather.clone());
         s.bot_radar = match g.bot_radar {
             BotRadar::Off => tabg_game::BotRadar::Off,
             BotRadar::Admins => tabg_game::BotRadar::Admins,
@@ -800,6 +820,35 @@ mod tests {
         assert_eq!(c.client_mods(), ["visuals", "destruction"]);
         c.mods.client = vec!["destruction@1.0.0".into()];
         assert_eq!(c.client_mods(), ["destruction@1.0.0"]);
+    }
+
+    #[test]
+    fn weather_is_auto_or_a_known_one() {
+        let base = RoomSettings::default();
+        let mut c = ServerToml::default();
+        assert!(c.validate().is_empty());
+        assert_eq!(c.room_settings(&base).weather, None);
+        c.game.weather = "rain".into();
+        assert!(c.validate().is_empty());
+        assert_eq!(c.room_settings(&base).weather.as_deref(), Some("rain"));
+        c.game.weather = "tornado".into();
+        assert!(c.validate().iter().any(|p| p.field == "game.weather"));
+    }
+
+    #[test]
+    fn capture_the_princess_brings_its_mods() {
+        let mut c = ServerToml::default();
+        c.game.mode = GameMode::Princess;
+        c.mods.client = vec!["visuals".into()];
+        assert_eq!(
+            c.client_mods(),
+            [
+                "visuals",
+                "flying-controls",
+                "mod-settings",
+                "princess-mode"
+            ]
+        );
     }
 
     #[test]

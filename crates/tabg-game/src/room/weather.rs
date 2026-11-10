@@ -14,7 +14,7 @@ const HELLO: u8 = 1;
 const SET: u8 = 2;
 
 /// The weathers the Visuals mod knows, as it names them.
-pub(super) const NAMES: [&str; 10] = [
+pub const NAMES: [&str; 10] = [
     "Clear",
     "Overcast",
     "Mist",
@@ -33,6 +33,8 @@ pub(super) struct WeatherState {
     clients: Vec<u8>,
     /// The admin's choice; `None` lets every client follow the biome.
     forced: Option<&'static str>,
+    /// The host's setting as last applied (it wins over `/weather` only when it changes).
+    setting: Option<&'static str>,
 }
 
 /// `name` in any case, or `None` if the mod has no such weather.
@@ -100,6 +102,17 @@ impl Room {
     pub(super) fn weather_name(&self) -> Option<&'static str> {
         self.weather.forced
     }
+
+    /// The host picked another weather (`weather` in the settings, also after a reload): send
+    /// it to everyone with Visuals.
+    pub(super) fn follow_weather_setting(&mut self) -> Vec<Outgoing> {
+        let want = self.settings.weather.as_deref().and_then(parse);
+        if want == self.weather.setting {
+            return Vec::new();
+        }
+        self.weather.setting = want;
+        self.set_weather(want).0
+    }
 }
 
 #[cfg(test)]
@@ -157,5 +170,36 @@ mod tests {
         assert!(out.is_empty());
         assert!(reply.contains("0 player"), "{reply}");
         assert!(room.console("weather").1.contains("Snowfall"));
+    }
+
+    #[test]
+    fn the_hosts_weather_setting_applies_and_follows_reloads() {
+        let mut room = Room::new(RoomSettings {
+            weather: Some("storm".into()),
+            ..RoomSettings::default()
+        });
+        room.tick(0.0);
+        assert_eq!(sent_name(&room.handle(1, &hello())[0]), "Storm");
+        // An admin's choice holds until the host changes the setting.
+        room.console("weather clear");
+        assert!(room.tick(0.1).iter().all(|o| o.packet.code != WEATHER));
+        let mut next = room.settings().clone();
+        next.weather = Some("Snowfall".into());
+        room.apply_settings(next);
+        let out = room.tick(0.2);
+        let sent: Vec<String> = out
+            .iter()
+            .filter(|o| o.packet.code == WEATHER)
+            .map(sent_name)
+            .collect();
+        assert_eq!(sent, ["Snowfall"]);
+        let mut next = room.settings().clone();
+        next.weather = None;
+        room.apply_settings(next);
+        let out = room.tick(0.3);
+        assert!(
+            out.iter()
+                .any(|o| o.packet.code == WEATHER && sent_name(o) == "Auto")
+        );
     }
 }

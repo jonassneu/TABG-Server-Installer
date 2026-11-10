@@ -656,8 +656,27 @@ fn capture_the_princess_shows_its_settings_and_a_start_button() {
     assert_eq!(saved.game.mode, tabg_host::config::GameMode::Princess);
     let mods = saved.client_mods();
     assert!(
-        mods.iter().any(|m| m == "flying-controls") && mods.iter().any(|m| m == "mod-settings")
+        ["flying-controls", "mod-settings", "princess-mode"]
+            .iter()
+            .all(|id| mods.iter().any(|m| m == id))
     );
     open(&mut h, Tab::Rules);
     h.get_by_label("Base turrets");
+}
+
+#[test]
+fn the_weather_card_sets_the_weather_for_everyone() {
+    let f = fixture(true);
+    let mut h = live(&f);
+    sync_ctx(&mut h);
+    open(&mut h, Tab::Overview);
+    h.get_by_label("Weather");
+    h.get_by_label("Storm").click();
+    h.step();
+    settle(&mut h, |g| !g.applying && g.saved.game.weather == "Storm");
+    assert_eq!(on_disk(&f).game.weather, "Storm");
+    h.get_by_label("Auto").click();
+    h.step();
+    settle(&mut h, |g| !g.applying && g.saved.game.weather == "auto");
+    assert_eq!(on_disk(&f).game.weather, "auto");
 }

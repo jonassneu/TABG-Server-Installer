@@ -21,6 +21,7 @@ pub mod vehicles;
 
 pub use princess::{BotSkill, PrincessBase, PrincessRules};
 pub use ring::RingRules;
+pub use room::WEATHERS;
 pub use room::{
     Outgoing, PlayerInfo, RESTART_AFTER_END, Recipients, Room, RoomEvent, SpellDrops, VehicleRules,
 };

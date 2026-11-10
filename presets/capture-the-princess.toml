@@ -1,5 +1,5 @@
 title = "Capture the Princess"
-description = "Actual Castle against New Castle. Each team hides a princess in its base and respawns next to its cage. Hold a gun on the other team's princess and she walks to your cage: bring her in to win. Every few kills earn a helicopter, and turrets guard the bases. Bots fill both teams. Friends need the flying-controls and mod-settings mods (included in the share code)."
+description = "Actual Castle against New Castle. Each team hides a princess in its base and respawns next to its cage. Hold a gun on the other team's princess and she walks to your cage: bring her in to win. Every few kills earn a helicopter, and turrets guard the bases. Bots fill both teams. Friends get the princess-mode, flying-controls and mod-settings mods with the share code: princess-mode draws the cages and turrets."
 
 [config.game]
 mode = "princess"

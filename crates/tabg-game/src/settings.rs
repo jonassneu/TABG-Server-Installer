@@ -147,6 +147,9 @@ pub struct RoomSettings {
     pub brawl: crate::brawl::BrawlRules,
     /// Capture the Princess (Battle Royale's island, no plane or ring); `None`: off.
     pub princess: Option<crate::princess::PrincessRules>,
+    /// The host's weather for everyone with the Visuals mod (one of `WEATHERS`); `None` lets
+    /// each client follow the biome. An admin's `/weather` overrides it until it changes.
+    pub weather: Option<String>,
     /// Let CustomGameSkins clients wear any built-in outfit (host opt-in).
     pub skins: bool,
     /// Range/DevTest map (needs the matching client mod and `game_mode` = Test).
@@ -200,6 +203,7 @@ impl Default for RoomSettings {
             skins: false,
             brawl: crate::brawl::BrawlRules::default(),
             princess: None,
+            weather: None,
             bomb: None,
             soul_item: None,
             curses: Vec::new(),

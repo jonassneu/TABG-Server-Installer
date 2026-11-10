@@ -28,7 +28,7 @@ const fn m(id: &'static str, name: &'static str, key: &'static str, what: &'stat
     }
 }
 
-const MODS: [ModRow; 13] = [
+const MODS: [ModRow; 14] = [
     m(
         "proximity-chat",
         "ProximityChat",
@@ -106,6 +106,12 @@ const MODS: [ModRow; 13] = [
         "Visuals",
         "F8",
         "Better shadows, clouds, sea, smoke and explosions",
+    ),
+    m(
+        "princess-mode",
+        "PrincessMode",
+        "F3",
+        "Capture the Princess: cages, turrets, HUD and loadouts",
     ),
 ];
 
@@ -564,12 +570,13 @@ mod tests {
             ("ModSettings", "mod-settings"),
             ("PerformanceClient", "performance-client"),
             ("PopupBlocker", "popup-blocker"),
+            ("PrincessMode", "princess-mode"),
             ("ProximityChat.Client", "proximity-chat"),
             ("RangeMap.Client", "range-map"),
             ("Visuals", "visuals"),
         ] {
             assert!(MODS.iter().any(|m| m.id == id), "{name}: {id}");
         }
-        assert_eq!(MODS.len(), 13);
+        assert_eq!(MODS.len(), 14);
     }
 }

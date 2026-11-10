@@ -63,6 +63,7 @@ mod weather;
 pub use console::{PlayerInfo, RoomEvent};
 pub use extras::SpellDrops;
 pub use vehicles::VehicleRules;
+pub use weather::NAMES as WEATHERS;
 
 /// After a match ends, players are disconnected this long later and the room resets (the official
 /// server terminates 15 s after the end).
@@ -2355,6 +2356,7 @@ impl Room {
         out.extend(self.tick_bots(now, dt));
         out.extend(self.tick_radar(now));
         out.extend(self.tick_destruction());
+        out.extend(self.follow_weather_setting());
         if self.state == game_state::STARTED {
             out.extend(self.tick_aircraft(now, dt));
             out.extend(self.tick_missiles(now, dt));
