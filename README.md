@@ -55,6 +55,12 @@ the shooting range, friends run `tabg join <code>` once and get exactly the mods
 
 Or [build it yourself](#building).
 
+> **Windows blocks it?** tabg isn't code-signed yet, so Windows 11's **Smart App Control** stops it
+> and offers no way to allow a single app. The only way past it is to turn Smart App Control off
+> (Windows Security → App & browser control → Smart App Control settings). On some Windows versions
+> it can't be turned back on without resetting Windows. SmartScreen's "Windows protected your PC" is
+> different: click **More info** → **Run anyway**.
+
 ## Quick Start
 
 ### Server Setup
