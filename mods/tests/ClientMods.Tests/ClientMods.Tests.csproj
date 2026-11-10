@@ -11,6 +11,7 @@
     <ProjectReference Include="../../src/ProximityChat.Client/ProximityChat.Client.csproj" />
     <ProjectReference Include="../../src/AdminRadar.Client/AdminRadar.Client.csproj" />
     <ProjectReference Include="../../src/Destruction/Destruction.csproj" />
+    <ProjectReference Include="../../src/PrincessMode/PrincessMode.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- The radar's messages carry Unity vectors (plain structs, no engine needed). -->

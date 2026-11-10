@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The turret model (Kenney, CC0; see THIRD-PARTY.md) is built by Unity into an asset bundle
+    (scripts/build-shaders.sh writes target/bundles/princess) and embedded, so the mod stays one
+    DLL. Without the bundle the mod still builds and draws simple turrets.
+  -->
+  <PropertyGroup>
+    <PrincessBundle>$(MSBuildThisFileDirectory)../../../target/bundles/princess</PrincessBundle>
+  </PropertyGroup>
+  <ItemGroup>
+    <GameRef Include="UnityEngine.AssetBundleModule" />
+    <GameRef Include="UnityEngine.IMGUIModule" />
+    <GameRef Include="UnityEngine.InputLegacyModule" />
+    <GameRef Include="UnityEngine.PhysicsModule" />
+    <GameRef Include="UnityEngine.TextRenderingModule" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ModSettings/ModSettings.csproj" Private="false" />
+    <EmbeddedResource Include="$(PrincessBundle)" LogicalName="princess.bundle" Condition="Exists('$(PrincessBundle)')" />
+  </ItemGroup>
+</Project>
